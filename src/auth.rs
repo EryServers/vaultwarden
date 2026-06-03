@@ -28,9 +28,9 @@ use crate::{
     db::{
         DbConn,
         models::{
-            AttachmentId, CipherId, CollectionId, Device, DeviceId, DeviceType, EmergencyAccessId,
-            Membership, MembershipId, MembershipStatus, MembershipType, OrgApiKeyId, OrganizationId, SendFileId,
-            SendId, User, UserId, UserStampException,
+            AttachmentId, CipherId, CollectionId, Device, DeviceId, DeviceType, EmergencyAccessId, Membership,
+            MembershipId, MembershipStatus, MembershipType, OrgApiKeyId, OrganizationId, SendFileId, SendId, User,
+            UserId, UserStampException,
         },
     },
     error::Error,
