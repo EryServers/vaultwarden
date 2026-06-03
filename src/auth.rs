@@ -843,7 +843,6 @@ impl<'r> FromRequest<'r> for AdminHeaders {
     }
 }
 
-
 /// The ManagerHeaders are used to check if you are at least a Manager
 /// and have access to the specific collection provided via the <col_id>/collections/collectionId.
 /// This does strict checking on the collection_id, ManagerHeadersLoose does not.
@@ -932,6 +931,7 @@ impl From<ManagerHeadersLoose> for Headers {
 }
 
 impl ManagerHeaders {
+    #[allow(clippy::unused_async)]
     pub async fn from_loose(
         h: ManagerHeadersLoose,
         collections: &Vec<CollectionId>,
