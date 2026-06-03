@@ -1,0 +1,107 @@
+name: Upstream sync check
+
+on:
+  schedule:
+    # First day of every month, 06:00 UTC
+    - cron: '0 6 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: Check upstream for new commits / tags
+    runs-on: ubuntu-latest
+    env:
+      UPSTREAM: https://github.com/dani-garcia/vaultwarden.git
+      PATCH_BRANCH: patch/allow-manager-create-collections
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream "$UPSTREAM"
+          git fetch upstream --tags --prune
+
+      - name: Compute diff vs upstream/main
+        id: diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "$PATCH_BRANCH":"refs/remotes/origin/$PATCH_BRANCH" || true
+
+          BASE=$(git merge-base upstream/main "origin/$PATCH_BRANCH" || echo "")
+          AHEAD=$(git rev-list --count "$BASE..upstream/main" 2>/dev/null || echo "0")
+          LATEST_TAG=$(git describe --tags --abbrev=0 upstream/main 2>/dev/null || echo "unknown")
+          LATEST_SHA=$(git rev-parse --short upstream/main)
+
+          {
+            echo "ahead=$AHEAD"
+            echo "latest_tag=$LATEST_TAG"
+            echo "latest_sha=$LATEST_SHA"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "## Upstream status" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Latest upstream tag: \`$LATEST_TAG\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Latest upstream commit: \`$LATEST_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commits on upstream/main not in patch branch: **$AHEAD**" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open / update tracking issue
+        if: steps.diff.outputs.ahead != '0'
+        uses: actions/github-script@v7
+        env:
+          AHEAD: ${{ steps.diff.outputs.ahead }}
+          LATEST_TAG: ${{ steps.diff.outputs.latest_tag }}
+          LATEST_SHA: ${{ steps.diff.outputs.latest_sha }}
+        with:
+          script: |
+            const title = 'Upstream sync needed';
+            const body = [
+              `Upstream \`dani-garcia/vaultwarden\` has new commits not in \`${process.env.PATCH_BRANCH || 'patch/allow-manager-create-collections'}\`.`,
+              ``,
+              `- Latest upstream tag: \`${process.env.LATEST_TAG}\``,
+              `- Latest upstream commit: \`${process.env.LATEST_SHA}\``,
+              `- Commits behind: **${process.env.AHEAD}**`,
+              ``,
+              `### Sync steps`,
+              '```powershell',
+              `git fetch upstream`,
+              `git checkout patch/allow-manager-create-collections`,
+              `git rebase upstream/main   # or: git merge upstream/main`,
+              `# resolve any conflicts, then:`,
+              `git push --force-with-lease`,
+              '```',
+              ``,
+              `The build workflow will then rebuild and push a new image to GHCR.`,
+            ].join('\n');
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'upstream-sync',
+            });
+
+            if (issues.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues[0].number,
+                body: `Re-check on ${new Date().toISOString()}:\n\n${body}`,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['upstream-sync'],
+              });
+            }
