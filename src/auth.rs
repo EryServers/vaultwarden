@@ -22,7 +22,7 @@ use crate::{
     db::{
         DbConn,
         models::{
-            AttachmentId, CipherId, Collection, CollectionId, Device, DeviceId, DeviceType, EmergencyAccessId,
+            AttachmentId, CipherId, CollectionId, Device, DeviceId, DeviceType, EmergencyAccessId,
             Membership, MembershipId, MembershipStatus, MembershipType, OrgApiKeyId, OrganizationId, SendFileId,
             SendId, User, UserId, UserStampException,
         },
@@ -827,24 +827,6 @@ impl<'r> FromRequest<'r> for AdminHeaders {
     }
 }
 
-// col_id is usually the fourth path param ("/organizations/<org_id>/collections/<col_id>"),
-// but there could be cases where it is a query value.
-// First check the path, if this is not a valid uuid, try the query values.
-fn get_col_id(request: &Request<'_>) -> Option<CollectionId> {
-    if let Some(Ok(col_id)) = request.param::<String>(3)
-        && uuid::Uuid::parse_str(&col_id).is_ok()
-    {
-        return Some(col_id.into());
-    }
-
-    if let Some(Ok(col_id)) = request.query_value::<String>("collectionId")
-        && uuid::Uuid::parse_str(&col_id).is_ok()
-    {
-        return Some(col_id.into());
-    }
-
-    None
-}
 
 /// The ManagerHeaders are used to check if you are at least a Manager
 /// and have access to the specific collection provided via the <col_id>/collections/collectionId.
@@ -868,8 +850,6 @@ impl<'r> FromRequest<'r> for ManagerHeaders {
             // Org-level Manager/Admin/Owner role is sufficient; this avoids the web vault
             // logging the user out on a 401 when editing collection access. Visibility of
             // other collections is still enforced by the listing endpoints' access filters.
-            let _ = get_col_id(request);
-
             Outcome::Success(Self {
                 host: headers.host,
                 device: headers.device,
@@ -939,10 +919,9 @@ impl ManagerHeaders {
     pub async fn from_loose(
         h: ManagerHeadersLoose,
         collections: &Vec<CollectionId>,
-        conn: &DbConn,
+        _conn: &DbConn,
     ) -> Result<ManagerHeaders, Error> {
         // Local fork: only validate UUID shape; skip per-collection manage check (see ManagerHeaders).
-        let _ = conn;
         for col_id in collections {
             if uuid::Uuid::parse_str(col_id.as_ref()).is_err() {
                 err!("Collection Id is malformed!");
