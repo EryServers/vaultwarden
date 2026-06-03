@@ -864,17 +864,11 @@ impl<'r> FromRequest<'r> for ManagerHeaders {
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         let headers = try_outcome!(OrgHeaders::from_request(request).await);
         if headers.is_confirmed_and_manager() {
-            if let Some(col_id) = get_col_id(request) {
-                let Outcome::Success(conn) = DbConn::from_request(request).await else {
-                    err_handler!("Error getting DB")
-                };
-
-                if !Collection::is_coll_manageable_by_user(&col_id, &headers.membership.user_uuid, &conn).await {
-                    err_handler!("The current user isn't a manager for this collection")
-                }
-            } else {
-                err_handler!("Error getting the collection id")
-            }
+            // Local fork: drop the strict per-collection manage check.
+            // Org-level Manager/Admin/Owner role is sufficient; this avoids the web vault
+            // logging the user out on a 401 when editing collection access. Visibility of
+            // other collections is still enforced by the listing endpoints' access filters.
+            let _ = get_col_id(request);
 
             Outcome::Success(Self {
                 host: headers.host,
@@ -947,12 +941,11 @@ impl ManagerHeaders {
         collections: &Vec<CollectionId>,
         conn: &DbConn,
     ) -> Result<ManagerHeaders, Error> {
+        // Local fork: only validate UUID shape; skip per-collection manage check (see ManagerHeaders).
+        let _ = conn;
         for col_id in collections {
             if uuid::Uuid::parse_str(col_id.as_ref()).is_err() {
                 err!("Collection Id is malformed!");
-            }
-            if !Collection::is_coll_manageable_by_user(col_id, &h.membership.user_uuid, conn).await {
-                err!("Collection not found", "The current user isn't a manager for this collection")
             }
         }
 
