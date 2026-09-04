@@ -931,7 +931,7 @@ impl From<ManagerHeadersLoose> for Headers {
 }
 
 impl ManagerHeaders {
-    #[allow(clippy::unused_async)]
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
     pub async fn from_loose(
         h: ManagerHeadersLoose,
         collections: &Vec<CollectionId>,
