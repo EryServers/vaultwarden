@@ -32,8 +32,8 @@ use crate::{
     db::{
         DbConn,
         models::{
-            AttachmentId, CipherId, CollectionId, Device, DeviceId, DeviceType, EmergencyAccessId, Membership,
-            EventType, MembershipId, MembershipStatus, MembershipType, OrgApiKeyId, OrganizationId, SendFileId,
+            AttachmentId, CipherId, CollectionId, Device, DeviceId, DeviceType, EmergencyAccessId, EventType,
+            Membership, MembershipId, MembershipStatus, MembershipType, OrgApiKeyId, OrganizationId, SendFileId,
             SendId, User, UserId, UserStampException,
         },
     },
